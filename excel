@@ -1,0 +1,81 @@
+
+from openpyxl.styles import  Side, Alignment, Protection, Font,PatternFill, Border,
+from openpyxl import Workbook
+from openpyxl.utils.cell import get_column_letter
+from openpyxl.utils.dataframe import dataframe_to_rows
+import pandas as pd
+import os
+import pymysql
+
+class writeto_excel:
+    def __init__(self, filenames):
+        os.mkdir("filenames")
+        self.filenames = filenames
+        self.workbook = Workbook()
+
+    def getdata(self, sql):
+        db = pymysql.connect(host=“你的数据库地址”, user=“用户名”,password=“密码”,database=“数据库名”)
+        #'定义游标'
+        cursor = db.cursor()
+         #'执行sql'
+        cursor.execute(sql)
+        colnames = [x[0] for x in cursor.description]
+        
+        mydata = cursor.fetchall()
+        df = pd.DataFrame(mydata, columns=colnames)
+        db.close()
+        return df
+
+    def setstyle(self, df, ws):
+        coltype = df.dtypes
+        ws.sheet_view.showGridLines = False
+        for i in range(len(coltype)):
+            cw = max([len(str(x)) for x in df.iloc[:, i]])
+            col = ws.column_dimensions[get_column_letter(i + 1)]
+            col.width = min(max(40, cw + 6), 90)
+            zt = 'Helvetica Neue'
+            h = 'right'
+            nf = 'General'
+            if coltype[i] == 'float' or coltype[i] == 'int':
+                zt = 'Helvetica Neue'
+                h = 'right'
+            self.set_columns_style(ws, df.shape[0], i + 1, zt, h, nf)
+            c1 = ws.cell(row=1, column=i + 1)
+            c1.font = Font(name='PingFang SC', color='FFFFFF', size=12, bold=True)
+            c1.alignment = Alignment(horizontal=h, vertical='center')
+            c1.fill = PatternFill("solid", fgColor="34558B")
+            c = ws['E2']
+            ws.freeze_panes = c
+
+
+    def set_columns_style(self, ws, rows, col, zt, h, nf):
+        for j in range(1, rows + 1):
+            font = Font(name=zt, color='000000', size=12)
+            alignment = Alignment(horizontal=h, vertical='center')
+            cell = ws.cell(row=j + 1, column=col)
+            cell.font = font
+            cell.alignment = alignment
+            cell.number_format = nf
+
+    def add_sheet(self, sql, sheetname):
+        ws = self.workbook.create_sheet(sheetname)
+        ws = self.workbook[sheetname]
+        df = self.getdata(sql)
+        self.writetoexcel(df, ws)
+
+    def save_workbook(self):
+        self.workbook.save(self.filenames)
+
+
+    def writetoexcel(self, df, ws):
+        for r in dataframe_to_rows(df, index=False, header=True):
+            ws.append(r)
+        self.setstyle(df, ws)
+
+
+sql =""
+
+data = writeto_excel('test.xlsx')
+# df = data.getdata(sql)
+# data_last.add_sheet(sql, 'sheet1_name')
+data.save_workbook()
